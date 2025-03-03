@@ -65,10 +65,8 @@ export default function TeacherPortal() {
   const [plagiarismResult, setPlagiarismResult] = useState<string | null>(null)
   const [isPlagiarismDialogOpen, setIsPlagiarismDialogOpen] = useState(false)
   const [plagiarismData, setPlagiarismData] = useState<{
-    currentSubmission: { name: string, contentLength: number } | null,
     results: { student1: string, student2: string, similarityScore: number }[]
   }>({
-    currentSubmission: null,
     results: []
   })
 
@@ -152,20 +150,14 @@ export default function TeacherPortal() {
     setCallDetails({ studentId: "", date: "", time: "" })
   }
 
-  const handleCheckPlagiarism = async (submission: Submission) => {
+  const handleCheckPlagiarism = async () => {
     try {
       setIsPlagiarismDialogOpen(true)
-      setPlagiarismData({
-        currentSubmission: null,
-        results: []
-      })
+      setPlagiarismData({ results: [] })
       
-      const assignmentSubmissions = submissions.filter(
-        sub => sub.assignmentId === submission.assignmentId
-      )
-      
+      // Get all submissions
       const submissionContents = await Promise.all(
-        assignmentSubmissions.map(async (sub) => {
+        submissions.map(async (sub) => {
           const content = await getSubmissionFile(sub.filepath)
           return {
             id: sub.id,
@@ -176,13 +168,8 @@ export default function TeacherPortal() {
       )
       
       const similarityResults = calculateSimilarity(submissionContents)
-      const currentSubmission = submissionContents.find(sub => sub.id === submission.id)
       
       setPlagiarismData({
-        currentSubmission: currentSubmission ? {
-          name: currentSubmission.studentName,
-          contentLength: currentSubmission.content.length
-        } : null,
         results: similarityResults.map(result => ({
           student1: result.student1,
           student2: result.student2,
@@ -386,10 +373,19 @@ export default function TeacherPortal() {
             <CardDescription>Grade student submissions</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-4">
+              <Button 
+                onClick={handleCheckPlagiarism}
+                variant="secondary"
+                className="w-full"
+              >
+                Check All Submissions for Plagiarism
+              </Button>
+            </div>
             <ul className="space-y-4">
               {submissions.map((submission) => (
                 <li key={submission.id} className="relative border p-4 rounded-lg">
-                  <div className="flex justify-between items-center mb-2">
+                  <div className="flex justify-between items-center">
                     <span className="font-medium">{submission.studentName}</span>
                     <div className="space-x-2">
                       <Button 
@@ -406,16 +402,6 @@ export default function TeacherPortal() {
                         Grade
                       </Button>
                     </div>
-                  </div>
-                  <div className="flex justify-end pt-2">
-                    <Button 
-                      onClick={() => handleCheckPlagiarism(submission)} 
-                      variant="secondary"
-                      size="sm"
-                      className="text-xs"
-                    >
-                      Check Plagiarism
-                    </Button>
                   </div>
                 </li>
               ))}
@@ -526,51 +512,34 @@ export default function TeacherPortal() {
             </DialogTitle>
           </DialogHeader>
           
-          {plagiarismData.currentSubmission ? (
-            <>
+          {plagiarismData.results.length > 0 ? (
               <div className="space-y-4">
-                <div className="border rounded-md p-4 bg-white">
-                  <h3 className="text-sm font-medium mb-2">Selected Submission</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="font-semibold">Student:</span> {plagiarismData.currentSubmission.name}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Content Length:</span> {plagiarismData.currentSubmission.contentLength} characters
-                    </div>
-                  </div>
-                </div>
-                
                 <div>
                   <h3 className="text-sm font-medium mb-2">Similarity Scores</h3>
-                  {plagiarismData.results.length > 0 ? (
-                    <div className="border rounded-md overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Student 1</TableHead>
-                            <TableHead>Student 2</TableHead>
-                            <TableHead>Similarity Score</TableHead>
+                  <div className="border rounded-md overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student 1</TableHead>
+                          <TableHead>Student 2</TableHead>
+                          <TableHead>Similarity Score</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {plagiarismData.results.map((result, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{result.student1}</TableCell>
+                            <TableCell>{result.student2}</TableCell>
+                            <TableCell>
+                              <Badge className={getSimilarityColor(result.similarityScore)}>
+                                {(result.similarityScore * 100).toFixed(2)}%
+                              </Badge>
+                            </TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {plagiarismData.results.map((result, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{result.student1}</TableCell>
-                              <TableCell>{result.student2}</TableCell>
-                              <TableCell>
-                                <Badge className={getSimilarityColor(result.similarityScore)}>
-                                  {(result.similarityScore * 100).toFixed(2)}%
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No similarities found between submissions.</p>
-                  )}
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
                 
                 <div className="border rounded-md p-4 bg-white">
@@ -594,15 +563,14 @@ export default function TeacherPortal() {
                   </p>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="flex justify-center items-center py-8">
-              <div className="flex flex-col items-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-                <p className="mt-2 text-sm text-gray-500">Analyzing submissions...</p>
+            ) : (
+              <div className="flex justify-center items-center py-8">
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
+                  <p className="mt-2 text-sm text-gray-500">Analyzing submissions...</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
           
           <DialogFooter>
             <Button onClick={() => setIsPlagiarismDialogOpen(false)}>

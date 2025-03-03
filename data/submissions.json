@@ -1,26 +1,32 @@
 [
   {
-    "id": "004",
+    "id": "001",
     "assignmentId": "001",
-    "studentId": "002",
-    "studentName": "f",
+    "studentId": "004",
+    "studentName": "John",
     "filename": "Lab-01-COAL-BSCS13E-BA.docx",
-    "filepath": "uploads/1740951159937-Lab-01-COAL-BSCS13E-BA.docx"
+    "filepath": "C:\\Users\\GAMEPLAY\\Downloads\\my-app - Copy\\my-app - Copy\\uploads\\1740968535932-Lab-01-COAL-BSCS13E-BA.docx",
+    "grade": 5,
+    "feedback": "Plagiarised with Rahul"
   },
   {
-    "id": "005",
+    "id": "002",
     "assignmentId": "001",
     "studentId": "003",
-    "studentName": "aa",
-    "filename": "Lab 5 - Responsive Web Design and CSS Grid.docx",
-    "filepath": "C:\\Users\\GAMEPLAY\\Downloads\\my-app - Copy\\my-app - Copy\\uploads\\1740966104275-Lab 5 - Responsive Web Design and CSS Grid.docx"
+    "studentName": "Rahul",
+    "filename": "COal lab 01 solved.docx",
+    "filepath": "C:\\Users\\GAMEPLAY\\Downloads\\my-app - Copy\\my-app - Copy\\uploads\\1740968560499-COal lab 01 solved.docx",
+    "grade": 62,
+    "feedback": "Needs modifications in following:\r\nSimple GUI\r\nNo complex code usage"
   },
   {
     "id": "003",
     "assignmentId": "001",
-    "studentId": "004",
-    "studentName": "usman",
-    "filename": "Lab-01-COAL-BSCS13E-BA.docx",
-    "filepath": "C:\\Users\\GAMEPLAY\\Downloads\\my-app - Copy\\my-app - Copy\\uploads\\1740966188301-Lab-01-COAL-BSCS13E-BA.docx"
+    "studentId": "002",
+    "studentName": "Alex",
+    "filename": "Lab-01-COAL-BSCS13E-BA (1).docx",
+    "filepath": "C:\\Users\\GAMEPLAY\\Downloads\\my-app - Copy\\my-app - Copy\\uploads\\1740968576827-Lab-01-COAL-BSCS13E-BA (1).docx",
+    "grade": 5,
+    "feedback": "Plagiarised with John"
   }
 ]
