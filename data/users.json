@@ -1,0 +1,42 @@
+[
+  {
+    "id": "000",
+    "name": "Admin",
+    "email": "admin@gmail.com",
+    "password": "admin",
+    "class": "N/A",
+    "school": "N/A",
+    "registrationId": "ADMIN",
+    "role": "teacher"
+  },
+  {
+    "name": "f",
+    "email": "f@gmail.com",
+    "password": "f@gmail.com",
+    "class": "10",
+    "school": "S",
+    "registrationId": "1",
+    "id": "002",
+    "role": "student"
+  },
+  {
+    "name": "aa",
+    "email": "aa@gmail.com",
+    "password": "aa@gmail.com",
+    "class": "10",
+    "school": "Oxford",
+    "registrationId": "001",
+    "id": "003",
+    "role": "student"
+  },
+  {
+    "name": "usman",
+    "email": "q@q.com",
+    "password": "q",
+    "class": "1",
+    "school": "SEECS",
+    "registrationId": "456267",
+    "id": "004",
+    "role": "student"
+  }
+]
