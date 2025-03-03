@@ -11,6 +11,23 @@ import { LogoutButton } from "@/components/logout-button"
 import { scheduleCall } from "@/lib/calls"
 import { getUsers } from "@/lib/users"
 import { checkPlagiarism } from "@/lib/plagiarism"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table"
+import { AlertCircle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 interface Assignment {
   id: string
@@ -46,6 +63,14 @@ export default function TeacherPortal() {
   const [callDetails, setCallDetails] = useState({ studentId: "", date: "", time: "" })
   const [users, setUsers] = useState<User[]>([])
   const [plagiarismResult, setPlagiarismResult] = useState<string | null>(null)
+  const [isPlagiarismDialogOpen, setIsPlagiarismDialogOpen] = useState(false)
+  const [plagiarismData, setPlagiarismData] = useState<{
+    currentSubmission: { name: string, contentLength: number } | null,
+    results: { student1: string, student2: string, similarityScore: number }[]
+  }>({
+    currentSubmission: null,
+    results: []
+  })
 
   useEffect(() => {
     fetchAssignments()
@@ -127,161 +152,170 @@ export default function TeacherPortal() {
     setCallDetails({ studentId: "", date: "", time: "" })
   }
 
-  // First, let's modify the handleCheckPlagiarism function in your TeacherPortal component
-const handleCheckPlagiarism = async (submission: Submission) => {
-  try {
-    // Set a loading state
-    setPlagiarismResult("Loading plagiarism results...")
-    
-    // Fetch all submissions for the same assignment
-    const assignmentSubmissions = submissions.filter(
-      sub => sub.assignmentId === submission.assignmentId
-    )
-    
-    // Get content for all submissions
-    const submissionContents = await Promise.all(
-      assignmentSubmissions.map(async (sub) => {
-        const content = await getSubmissionFile(sub.filepath)
-        return {
-          id: sub.id,
-          studentName: sub.studentName,
-          content: content || ""
-        }
+  const handleCheckPlagiarism = async (submission: Submission) => {
+    try {
+      setIsPlagiarismDialogOpen(true)
+      setPlagiarismData({
+        currentSubmission: null,
+        results: []
       })
-    )
-    
-    // Calculate similarity between all submissions
-    const similarityResults = calculateSimilarity(submissionContents)
-    
-    // Format the results for display
-    const formattedResults = formatPlagiarismResults(
-      submissionContents, 
-      similarityResults,
-      submission.id
-    )
-    
-    setPlagiarismResult(formattedResults)
-  } catch (error) {
-    console.error("Error checking plagiarism:", error)
-    setPlagiarismResult("Error checking plagiarism: " + (error as Error).message)
-  }
-}
-
-// Helper function to calculate similarity between submissions
-function calculateSimilarity(submissions: { id: string, studentName: string, content: string }[]) {
-  const results: { submission1: string, submission2: string, student1: string, student2: string, similarityScore: number }[] = []
-  
-  // Tokenize all submissions
-  const tokenizedSubmissions = submissions.map(sub => ({
-    id: sub.id,
-    studentName: sub.studentName,
-    tokens: tokenizeContent(sub.content)
-  }))
-  
-  // Compare each submission with every other submission
-  for (let i = 0; i < tokenizedSubmissions.length; i++) {
-    for (let j = i + 1; j < tokenizedSubmissions.length; j++) {
-      const sub1 = tokenizedSubmissions[i]
-      const sub2 = tokenizedSubmissions[j]
       
-      const similarityScore = calculateJaccardSimilarity(sub1.tokens, sub2.tokens)
+      const assignmentSubmissions = submissions.filter(
+        sub => sub.assignmentId === submission.assignmentId
+      )
       
-      results.push({
-        submission1: sub1.id,
-        submission2: sub2.id,
-        student1: sub1.studentName,
-        student2: sub2.studentName,
-        similarityScore
+      const submissionContents = await Promise.all(
+        assignmentSubmissions.map(async (sub) => {
+          const content = await getSubmissionFile(sub.filepath)
+          return {
+            id: sub.id,
+            studentName: sub.studentName,
+            content: content || ""
+          }
+        })
+      )
+      
+      const similarityResults = calculateSimilarity(submissionContents)
+      const currentSubmission = submissionContents.find(sub => sub.id === submission.id)
+      
+      setPlagiarismData({
+        currentSubmission: currentSubmission ? {
+          name: currentSubmission.studentName,
+          contentLength: currentSubmission.content.length
+        } : null,
+        results: similarityResults.map(result => ({
+          student1: result.student1,
+          student2: result.student2,
+          similarityScore: result.similarityScore
+        }))
       })
+    } catch (error) {
+      console.error("Error checking plagiarism:", error)
+      setIsPlagiarismDialogOpen(false)
     }
   }
-  
-  // Sort by similarity score (highest first)
-  return results.sort((a, b) => b.similarityScore - a.similarityScore)
-}
 
-// Tokenize content into normalized words
-function tokenizeContent(content: string) {
-  if (!content) return new Set<string>()
-  
-  // Convert to lowercase
-  const lowerContent = content.toLowerCase()
-  
-  // Remove common punctuation and split into words
-  const words = lowerContent.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
-    .split(/\s+/)
-    .filter(word => word.length > 3) // Filter out very short words
-  
-  // Create n-grams (sequences of 3 consecutive words)
-  const ngrams = []
-  for (let i = 0; i < words.length - 2; i++) {
-    ngrams.push(`${words[i]} ${words[i+1]} ${words[i+2]}`)
+  const getSimilarityColor = (score: number) => {
+    if (score >= 0.3) return "bg-red-600 text-white"
+    if (score >= 0.2) return "bg-yellow-500 text-white"
+    return "bg-green-600 text-white"
   }
-  
-  return new Set(ngrams)
-}
 
-// Calculate Jaccard similarity coefficient between two sets of tokens
-function calculateJaccardSimilarity(tokens1: Set<string>, tokens2: Set<string>) {
-  if (tokens1.size === 0 || tokens2.size === 0) return 0
-  
-  // Find intersection
-  const intersection = new Set([...tokens1].filter(token => tokens2.has(token)))
-  
-  // Find union
-  const union = new Set([...tokens1, ...tokens2])
-  
-  // Calculate Jaccard similarity: intersection size / union size
-  return intersection.size / union.size
-}
+  // Helper function to calculate similarity between submissions
+  function calculateSimilarity(submissions: { id: string, studentName: string, content: string }[]) {
+    const results: { submission1: string, submission2: string, student1: string, student2: string, similarityScore: number }[] = []
+    
+    // Tokenize all submissions
+    const tokenizedSubmissions = submissions.map(sub => ({
+      id: sub.id,
+      studentName: sub.studentName,
+      tokens: tokenizeContent(sub.content)
+    }))
+    
+    // Compare each submission with every other submission
+    for (let i = 0; i < tokenizedSubmissions.length; i++) {
+      for (let j = i + 1; j < tokenizedSubmissions.length; j++) {
+        const sub1 = tokenizedSubmissions[i]
+        const sub2 = tokenizedSubmissions[j]
+        
+        const similarityScore = calculateJaccardSimilarity(sub1.tokens, sub2.tokens)
+        
+        results.push({
+          submission1: sub1.id,
+          submission2: sub2.id,
+          student1: sub1.studentName,
+          student2: sub2.studentName,
+          similarityScore
+        })
+      }
+    }
+    
+    // Sort by similarity score (highest first)
+    return results.sort((a, b) => b.similarityScore - a.similarityScore)
+  }
 
-// Format results for display
-function formatPlagiarismResults(
-  submissions: { id: string, studentName: string, content: string }[],
-  similarityResults: { submission1: string, submission2: string, student1: string, student2: string, similarityScore: number }[],
-  currentSubmissionId: string
-) {
-  // Create a map for quick student name lookup
-  const submissionMap = new Map(
-    submissions.map(sub => [sub.id, { name: sub.studentName, content: sub.content }])
-  )
-  
-  // Format the results
-  let formattedResult = "# Plagiarism Detection Results\n\n"
-  
-  // Add summary of submission being checked
-  const currentSubmission = submissions.find(sub => sub.id === currentSubmissionId)
-  if (currentSubmission) {
-    formattedResult += `## Selected Submission\n`
-    formattedResult += `Student: ${currentSubmission.studentName}\n`
-    formattedResult += `Content length: ${currentSubmission.content.length} characters\n\n`
+  // Tokenize content into normalized words
+  function tokenizeContent(content: string) {
+    if (!content) return new Set<string>()
+    
+    // Convert to lowercase
+    const lowerContent = content.toLowerCase()
+    
+    // Remove common punctuation and split into words
+    const words = lowerContent.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+      .split(/\s+/)
+      .filter(word => word.length > 3) // Filter out very short words
+    
+    // Create n-grams (sequences of 3 consecutive words)
+    const ngrams = []
+    for (let i = 0; i < words.length - 2; i++) {
+      ngrams.push(`${words[i]} ${words[i+1]} ${words[i+2]}`)
+    }
+    
+    return new Set(ngrams)
   }
-  
-  // Add similarity scores
-  formattedResult += "## Similarity Scores\n\n"
-  formattedResult += "| Student 1 | Student 2 | Similarity Score |\n"
-  formattedResult += "|-----------|-----------|------------------|\n"
-  
-  similarityResults.forEach(result => {
-    // Format the similarity as a percentage with 2 decimal places
-    const similarityPercentage = (result.similarityScore * 100).toFixed(2) + "%"
-    formattedResult += `| ${result.student1} | ${result.student2} | ${similarityPercentage} |\n`
-  })
-  
-  // If no similarities found
-  if (similarityResults.length === 0) {
-    formattedResult += "No similarities found between submissions.\n"
+
+  // Calculate Jaccard similarity coefficient between two sets of tokens
+  function calculateJaccardSimilarity(tokens1: Set<string>, tokens2: Set<string>) {
+    if (tokens1.size === 0 || tokens2.size === 0) return 0
+    
+    // Find intersection
+    const intersection = new Set([...tokens1].filter(token => tokens2.has(token)))
+    
+    // Find union
+    const union = new Set([...tokens1, ...tokens2])
+    
+    // Calculate Jaccard similarity: intersection size / union size
+    return intersection.size / union.size
   }
-  
-  // Add visualization warning and interpretation
-  formattedResult += "\n## Interpretation Guide\n\n"
-  formattedResult += "- Scores above 30% suggest significant similarity\n"
-  formattedResult += "- Scores between 20-30% indicate moderate similarity\n"
-  formattedResult += "- Scores below 20% suggest minimal or coincidental similarity\n"
-  formattedResult += "\nNote: These scores are based on algorithmic comparison and should be reviewed manually."
-  
-  return formattedResult
-}
+
+  // Format results for display
+  function formatPlagiarismResults(
+    submissions: { id: string, studentName: string, content: string }[],
+    similarityResults: { submission1: string, submission2: string, student1: string, student2: string, similarityScore: number }[],
+    currentSubmissionId: string
+  ) {
+    // Create a map for quick student name lookup
+    const submissionMap = new Map(
+      submissions.map(sub => [sub.id, { name: sub.studentName, content: sub.content }])
+    )
+    
+    // Format the results
+    let formattedResult = "# Plagiarism Detection Results\n\n"
+    
+    // Add summary of submission being checked
+    const currentSubmission = submissions.find(sub => sub.id === currentSubmissionId)
+    if (currentSubmission) {
+      formattedResult += `## Selected Submission\n`
+      formattedResult += `Student: ${currentSubmission.studentName}\n`
+      formattedResult += `Content length: ${currentSubmission.content.length} characters\n\n`
+    }
+    
+    // Add similarity scores
+    formattedResult += "## Similarity Scores\n\n"
+    formattedResult += "| Student 1 | Student 2 | Similarity Score |\n"
+    formattedResult += "|-----------|-----------|------------------|\n"
+    
+    similarityResults.forEach(result => {
+      // Format the similarity as a percentage with 2 decimal places
+      const similarityPercentage = (result.similarityScore * 100).toFixed(2) + "%"
+      formattedResult += `| ${result.student1} | ${result.student2} | ${similarityPercentage} |\n`
+    })
+    
+    // If no similarities found
+    if (similarityResults.length === 0) {
+      formattedResult += "No similarities found between submissions.\n"
+    }
+    
+    // Add visualization warning and interpretation
+    formattedResult += "\n## Interpretation Guide\n\n"
+    formattedResult += "- Scores above 30% suggest significant similarity\n"
+    formattedResult += "- Scores between 20-30% indicate moderate similarity\n"
+    formattedResult += "- Scores below 20% suggest minimal or coincidental similarity\n"
+    formattedResult += "\nNote: These scores are based on algorithmic comparison and should be reviewed manually."
+    
+    return formattedResult
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -352,21 +386,34 @@ function formatPlagiarismResults(
             <CardDescription>Grade student submissions</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2">
+            <ul className="space-y-4">
               {submissions.map((submission) => (
-                <li key={submission.id} className="flex justify-between items-center">
-                  <span>{submission.studentName}</span>
-                  <div>
+                <li key={submission.id} className="relative border p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium">{submission.studentName}</span>
+                    <div className="space-x-2">
+                      <Button 
+                        onClick={() => handleDownloadSubmission(submission)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Download
+                      </Button>
+                      <Button 
+                        onClick={() => setSelectedSubmission(submission)}
+                        size="sm"
+                      >
+                        Grade
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-2">
                     <Button 
-                      onClick={() => handleDownloadSubmission(submission)}
-                      className="mr-2"
+                      onClick={() => handleCheckPlagiarism(submission)} 
+                      variant="secondary"
+                      size="sm"
+                      className="text-xs"
                     >
-                      Download
-                    </Button>
-                    <Button onClick={() => setSelectedSubmission(submission)}>
-                      Grade
-                    </Button>
-                    <Button onClick={() => handleCheckPlagiarism(submission)} className="mr-2">
                       Check Plagiarism
                     </Button>
                   </div>
@@ -470,15 +517,100 @@ function formatPlagiarismResults(
           </CardContent>
         </Card>
       </div>
-      {plagiarismResult && (
-        <div className="overlay">
-          <div className="overlay-content">
-            <h2>Plagiarism Result</h2>
-            <pre>{plagiarismResult}</pre>
-            <Button onClick={() => setPlagiarismResult(null)}>Close</Button>
-          </div>
-        </div>
-      )}
+      <Dialog open={isPlagiarismDialogOpen} onOpenChange={setIsPlagiarismDialogOpen}>
+        <DialogContent className="max-w-4xl bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Plagiarism Detection Results
+            </DialogTitle>
+          </DialogHeader>
+          
+          {plagiarismData.currentSubmission ? (
+            <>
+              <div className="space-y-4">
+                <div className="border rounded-md p-4 bg-white">
+                  <h3 className="text-sm font-medium mb-2">Selected Submission</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="font-semibold">Student:</span> {plagiarismData.currentSubmission.name}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Content Length:</span> {plagiarismData.currentSubmission.contentLength} characters
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Similarity Scores</h3>
+                  {plagiarismData.results.length > 0 ? (
+                    <div className="border rounded-md overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Student 1</TableHead>
+                            <TableHead>Student 2</TableHead>
+                            <TableHead>Similarity Score</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {plagiarismData.results.map((result, index) => (
+                            <TableRow key={index}>
+                              <TableCell>{result.student1}</TableCell>
+                              <TableCell>{result.student2}</TableCell>
+                              <TableCell>
+                                <Badge className={getSimilarityColor(result.similarityScore)}>
+                                  {(result.similarityScore * 100).toFixed(2)}%
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No similarities found between submissions.</p>
+                  )}
+                </div>
+                
+                <div className="border rounded-md p-4 bg-white">
+                  <h3 className="text-sm font-medium mb-2">Interpretation Guide</h3>
+                  <ul className="text-sm space-y-1">
+                    <li className="flex items-center">
+                      <Badge className="bg-red-600 text-white mr-2">30%+</Badge>
+                      <span>Significant similarity - review required</span>
+                    </li>
+                    <li className="flex items-center">
+                      <Badge className="bg-yellow-500 text-white mr-2">20-30%</Badge>
+                      <span>Moderate similarity - may need review</span>
+                    </li>
+                    <li className="flex items-center">
+                      <Badge className="bg-green-600 text-white mr-2">&lt;20%</Badge>
+                      <span>Minimal similarity - likely coincidental</span>
+                    </li>
+                  </ul>
+                  <p className="text-xs text-gray-500 mt-2">
+                    These scores are based on algorithmic comparison and should be reviewed manually.
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-center items-center py-8">
+              <div className="flex flex-col items-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
+                <p className="mt-2 text-sm text-gray-500">Analyzing submissions...</p>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => setIsPlagiarismDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
